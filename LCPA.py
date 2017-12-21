@@ -106,3 +106,54 @@ class Proposition():
 		#if ruleNumber == 2:
 		#if ruleNumber == 3:"""
 
+import nltk.parse.stanford
+class SpeechProcessor():
+	def __init__(self):
+		self.stanfordParser = nltk.parse.stanford.StanfordParser(path_to_jar='/usr/local/Cellar/stanford-parser/3.8.0/libexec/stanford-parser.jar', path_to_models_jar='/usr/local/Cellar/stanford-parser/3.8.0/libexec/stanford-parser-3.8.0-models.jar', model_path='/usr/local/Cellar/stanford-parser/3.8.0/libexec/edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz')
+	def rawParse(self, sentence):
+		return list(self.stanfordParser.raw_parse(sentence))
+	def extractLogic(self, sentence):
+		rawParsed = self.rawParse(sentence)
+		#Only handling declarative sentences for now
+		if rawParsed[0][0].label() == 'S':
+			for i in range(len(rawParsed[0][0])):
+				if rawParsed[0][0][i].label() == 'NP':
+					NP = rawParsed[0][0][i]
+				elif rawParsed[0][0][i].label() == 'VP':
+					VP = rawParsed[0][0][i]
+			try:
+				VP and NP
+			except:
+				return
+			else:
+				while not type(NP[0]) is str:
+					NP = NP[0]
+				subjects =[]
+				for s in range(len(NP)):
+					if type(NP[s]) is str:
+						subjects.append(NP[s])
+
+				print(VP)
+				#CB sentences like 
+				#The sun is bigger than the earth
+				#Subjects: The Objects: N/A
+				#CB Boston is the capitol of massachusetts
+				#Subjects: Boston Objects: N/A
+				#CB The crown is a tv series about queen elizabeth
+				#Subjects: The Objects: N/A
+				#There are 24 hours in a day
+				#Subjects: There Objects: N/A
+				for i in range(len(VP)):
+					if (VP[i].label() == 'NP' or VP[i].label() == 'ADJP'):
+						VP = VP[i]
+						break
+
+				objects = []
+				for i in range(len(VP)):
+					if (VP[i].label()  == 'NN' or VP[i].label() == 'JJ' or VP[i].label() == 'VBG'):
+						objects.append(VP[i][0])
+		return "subjects: " + " ".join(subjects) + ". objects: " + " ".join(objects) + "."
+
+
+				
+
