@@ -12,23 +12,48 @@ class PropSyntax(Enum):
 #A class representing a propositional statement
 class Proposition():
 	#CB adding recursive aspects here. Propostions embed within each other
+	#Constructor assumes a properly formatted string array as input
 	def __init__(self, stringArr):
-		for s in range(len(stringArr)):
+		newArr = []
+		s = 0
+		while s < len(stringArr):
+			if stringArr[s] == "(":
+				newProp = Proposition(stringArr[s+1:])
+				newArr.append(newProp)
+				s += newProp.getTotalLength()+2
+			elif stringArr[s] == ")":
+				break
 			try: 
-				PropSyntax[stringArr[s]]
+			 	PropSyntax[stringArr[s]]
 			except:
+				if s < len(stringArr):
+					newArr.append(stringArr[s])
+					s += 1
 				continue
 			else:
-				stringArr[s] = PropSyntax[stringArr[s]]
-				nextBit = stringArr[s+1:]
-				if len(nextBit) > 1:
-					stringArr[s+1] = Proposition(nextBit)
-					stringArr = stringArr[:s+2]
-					break
-		self.propArr = stringArr
+				#Add in the not case
+				newArr.append(PropSyntax[stringArr[s]])
+				#if stringArr[s] == "NOT":
+				#	if (s+1) == (len(stringArr)-1):
+				#		continue
+				#	else:
+
+				
+			s += 1
+		self.propArr = newArr
 	def getPropArr(self):
 		return self.propArr
-	def checkRuleValidity(self, ruleNumber):
+	def getTotalLength(self):
+		length = 0
+		for item in self.propArr:
+			if type(item) is Proposition:
+				#Includes parens
+				length += item.getTotalLength() + 2
+			else:
+				length += 1
+		return length
+	#TODO: implement the rules portion
+	"""def checkRuleValidity(self, ruleNumber):
 		if ruleNumber == 1:
 			if self.propArr[1] == PropSyntax.AND or self.propArr[1] == PropSyntax.OR:
 				return True
@@ -77,5 +102,7 @@ class Proposition():
 			temp = self.propArr[0]
 			self.propArr[0] = self.propArr[2]
 			self.propArr[2] = temp
-		if ruleNumber == 2:
+		#CB this one
+		#if ruleNumber == 2:
+		#if ruleNumber == 3:"""
 
