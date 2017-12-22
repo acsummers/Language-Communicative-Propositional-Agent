@@ -167,8 +167,28 @@ class SpeechProcessor():
 							temp = node[o]
 							if type(temp[0]) is str:
 								objects.append(temp[0])
-		return "subjects: " + " ".join(subjects) + ". objects: " + " ".join(objects) + "."
+		return {'subjects': subjects, 'objects': objects}
 
+class Agent():
+	def __init__(self):
+		self.speechProcessor = SpeechProcessor()
+	def createProposition(self, sentence):
+		logic = self.speechProcessor.extractLogic(sentence)
+
+		finalSubject = ''
+		for subject in logic['subjects']:
+			if finalSubject == '':
+				finalSubject = subject 
+			else:
+				finalSubject = finalSubject + '_' + subject
+		finalObject = ''
+		for obj in logic['objects']:
+			if finalObject == '':
+				finalObject = obj
+			else:
+				finalObject = finalObject + '_' + obj
+
+		return Proposition([finalSubject, 'IMPLIES', finalObject])
 
 				
 
