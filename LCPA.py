@@ -126,23 +126,27 @@ class SpeechProcessor():
 			except:
 				return
 			else:
-				while not type(NP[0]) is str:
+				while not type(NP[0][0]) is str:
 					NP = NP[0]
 				subjects =[]
 				for s in range(len(NP)):
-					if type(NP[s]) is str:
-						subjects.append(NP[s])
+					node = NP[s]
+					if type(node[0]) is str:
+						subjects.append(node[0])
 
-				print(VP)
+				#print(VP)
 				#CB sentences like 
 				#The sun is bigger than the earth
-				#Subjects: The Objects: N/A
+				#Subjects: The sun Objects: N/A
 				#CB Boston is the capitol of massachusetts
-				#Subjects: Boston Objects: N/A
+				#Subjects: Boston Objects: the capitol
 				#CB The crown is a tv series about queen elizabeth
-				#Subjects: The Objects: N/A
+				#Subjects: The crown Objects: a tv series
+
 				#There are 24 hours in a day
-				#Subjects: There Objects: N/A
+				#Subjects: There Objects: 24 hours
+				#The subject is right given the parse tree, handle cases like this in more detail
+
 				for i in range(len(VP)):
 					if (VP[i].label() == 'NP' or VP[i].label() == 'ADJP'):
 						VP = VP[i]
@@ -152,6 +156,17 @@ class SpeechProcessor():
 				for i in range(len(VP)):
 					if (VP[i].label()  == 'NN' or VP[i].label() == 'JJ' or VP[i].label() == 'VBG'):
 						objects.append(VP[i][0])
+					elif (VP[i].label() == 'NP' ):
+					#or VP[i].label() == 'ADJP' or VP[i].label() == 'PP'):
+					#CB more complicated internal phrases
+						node = VP[i]
+						while not type(node[0][0]) is str:
+							node = node[0]
+							print(node)
+						for o in range(len(node)):
+							temp = node[o]
+							if type(temp[0]) is str:
+								objects.append(temp[0])
 		return "subjects: " + " ".join(subjects) + ". objects: " + " ".join(objects) + "."
 
 
