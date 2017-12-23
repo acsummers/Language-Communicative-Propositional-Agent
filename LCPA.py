@@ -154,41 +154,62 @@ class SpeechProcessor():
 
 				objects = []
 				for i in range(len(VP)):
-					if (VP[i].label()  == 'NN' or VP[i].label() == 'JJ' or VP[i].label() == 'VBG'):
+					if (VP[i].label()  == 'NN' or VP[i].label() == 'JJ' or VP[i].label() == 'VBG' or VP[i].label() == 'NNS'):
 						objects.append(VP[i][0])
-					elif (VP[i].label() == 'NP' ):
+					elif (VP[i].label() == 'NP'):
 					#or VP[i].label() == 'ADJP' or VP[i].label() == 'PP'):
 					#CB more complicated internal phrases
 						node = VP[i]
 						while not type(node[0][0]) is str:
 							node = node[0]
-							print(node)
 						for o in range(len(node)):
 							temp = node[o]
 							if type(temp[0]) is str:
 								objects.append(temp[0])
+					elif (VP[i].label() == 'VP'):
+						node = VP[i]
+						while not type(node[0][0]) is str:
+							node = node[0]
+						for o in range(len(node)):
+							temp = node[o]
+							if temp.label() == 'VBN' and type(temp[0]) is str:
+								objects.append(temp[0])
 		return {'subjects': subjects, 'objects': objects}
 
+import json
+from nltk import PorterStemmer
 class Agent():
 	def __init__(self):
 		self.speechProcessor = SpeechProcessor()
+		self.stemmer = PorterStemmer()
+		self.propositions = []
 	def createProposition(self, sentence):
 		logic = self.speechProcessor.extractLogic(sentence)
 
 		finalSubject = ''
 		for subject in logic['subjects']:
+			subject = self.stemmer.stem(subject)
 			if finalSubject == '':
 				finalSubject = subject 
 			else:
 				finalSubject = finalSubject + '_' + subject
 		finalObject = ''
 		for obj in logic['objects']:
+			obj = self.stemmer.stem(obj)
 			if finalObject == '':
 				finalObject = obj
 			else:
 				finalObject = finalObject + '_' + obj
 
 		return Proposition([finalSubject, 'IMPLIES', finalObject])
-
-				
+	def storeProposition(self, sentence):
+		self.propositions.append(self.createProposition(sentence))
+	def getPropositions(self):
+		return self.propositions
+	def displayPropArr(self, index=-1):
+		if index == -1:
+			for prop in self.propositions:
+				print(prop.getPropArr())
+		else:
+			print(self.propositions[index].getPropArr())
 
