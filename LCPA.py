@@ -53,19 +53,19 @@ class Proposition():
 				length += 1
 		return length
 	#TODO: implement the rules portion
-	"""def checkRuleValidity(self, ruleNumber):
+	def checkRuleValidity(self, ruleNumber):
 		if ruleNumber == 1:
-			if self.propArr[1] == PropSyntax.AND or self.propArr[1] == PropSyntax.OR:
+			if self.propArr.index(propSyntax.AND) != -1 or self.propArr[1].index(PropSyntax.OR) != -1:
 				return True
 			else:
 				return False
 		elif ruleNumber == 2:
-			if self.propArr[1] == PropSyntax.IMPLIES:
+			if self.propArr.index(PropSyntax.IMPLIES) != -1:
 				return True
 			else:
 				return False
 		elif ruleNumber ==3:
-			if self.propArr[1] == PropSyntax.OR or self.PropArr[1] == PropSyntax.AND:
+			if self.propArr.index(PropSyntax.OR) != -1 or self.PropArr.index(PropSyntax.AND) != -1:
 				return True
 			else:
 				return False
@@ -96,15 +96,18 @@ class Proposition():
 				return True
 			return False
 		#CB on GPS' 'main expression' rules
-	def applyRule(self, ruleNumber):
+	#def applyRule(self, ruleNumber):
 		#CB construction
-		if ruleNumber == 1:
-			temp = self.propArr[0]
-			self.propArr[0] = self.propArr[2]
-			self.propArr[2] = temp
+		#if ruleNumber == 1:
+		#	temp = self.propArr[0]
+		#	self.propArr[0] = self.propArr[2]
+		#	self.propArr[2] = temp
 		#CB this one
 		#if ruleNumber == 2:
-		#if ruleNumber == 3:"""
+		#	temp = self.propArr[0]
+		#	self.propArr[0] = self.propArr[2]
+		#	self.propArr[2] = temp
+		#if ruleNumber == 3:
 
 import nltk.parse.stanford
 class SpeechProcessor():
@@ -112,15 +115,23 @@ class SpeechProcessor():
 		self.stanfordParser = nltk.parse.stanford.StanfordParser(path_to_jar='/usr/local/Cellar/stanford-parser/3.8.0/libexec/stanford-parser.jar', path_to_models_jar='/usr/local/Cellar/stanford-parser/3.8.0/libexec/stanford-parser-3.8.0-models.jar', model_path='/usr/local/Cellar/stanford-parser/3.8.0/libexec/edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz')
 	def rawParse(self, sentence):
 		return list(self.stanfordParser.raw_parse(sentence))
-	def extractLogic(self, sentence):
-		rawParsed = self.rawParse(sentence)
+	def extractLogic(self, sentence, inputTree=None):
+		hypothetical = False
+
+		if not inputTree:
+			rawParsed = self.rawParse(sentence)
+			inputTree = rawParsed[0][0]
+
+		SBAR = None
 		#Only handling declarative sentences for now
-		if rawParsed[0][0].label() == 'S':
-			for i in range(len(rawParsed[0][0])):
-				if rawParsed[0][0][i].label() == 'NP':
-					NP = rawParsed[0][0][i]
-				elif rawParsed[0][0][i].label() == 'VP':
-					VP = rawParsed[0][0][i]
+		if inputTree.label() == 'S':
+			for i in range(len(inputTree)):
+				if inputTree[i].label() == 'NP':
+					NP = inputTree[i]
+				elif inputTree[i].label() == 'VP':
+					VP = inputTree[i]
+				elif inputTree[i].label() == 'SBAR':
+					SBAR = inputTree[i]
 			try:
 				VP and NP
 			except:
@@ -147,14 +158,25 @@ class SpeechProcessor():
 				#Subjects: There Objects: 24 hours
 				#The subject is right given the parse tree, handle cases like this in more detail
 
+				newVP = None
+
 				for i in range(len(VP)):
-					if (VP[i].label() == 'NP' or VP[i].label() == 'ADJP'):
-						VP = VP[i]
-						break
+					if (newVP == None and (VP[i].label() == 'NP' or VP[i].label() == 'ADJP' or VP[i].label() == 'VP')):
+						newVP = VP[i]
+					elif VP[i].label() == 'MD':
+						hypothetical = True
+					elif VP[i].label() == 'SBAR':
+						SBAR = VP[i]
+
+
+				if newVP:
+					VP = newVP
 
 				objects = []
 				for i in range(len(VP)):
-					if (VP[i].label()  == 'NN' or VP[i].label() == 'JJ' or VP[i].label() == 'VBG' or VP[i].label() == 'NNS'):
+					if VP[i].label() == 'SBAR':
+						SBAR = VP[i]
+					elif (VP[i].label()  == 'NN' or VP[i].label() == 'JJ' or VP[i].label() == 'VBG' or VP[i].label() == 'VBN' or VP[i].label() == 'NNS'):
 						objects.append(VP[i][0])
 					elif (VP[i].label() == 'NP'):
 					#or VP[i].label() == 'ADJP' or VP[i].label() == 'PP'):
@@ -166,15 +188,28 @@ class SpeechProcessor():
 							temp = node[o]
 							if type(temp[0]) is str:
 								objects.append(temp[0])
+					#CB if this is really necessary, might not have as many of these internal verb phrases
 					elif (VP[i].label() == 'VP'):
 						node = VP[i]
 						while not type(node[0][0]) is str:
 							node = node[0]
 						for o in range(len(node)):
 							temp = node[o]
-							if temp.label() == 'VBN' and type(temp[0]) is str:
+							if temp.label() == 'VBN' or temp.label() == 'VBG' and type(temp[0]) is str:
 								objects.append(temp[0])
-		return {'subjects': subjects, 'objects': objects}
+
+				if SBAR:
+					for node in SBAR:
+						if node.label() == 'S':
+							SBAR = self.extractLogic('', node)
+				if SBAR:
+					return {'conclusion':{'subjects': subjects, 'objects': objects}, 'premise': SBAR}
+				else:
+					if hypothetical:
+						return {'conclusion':{'subjects': subjects, 'objects': objects}, 'premise': '?'}
+					else:
+						return {'subjects': subjects, 'objects': objects}
+		return None
 
 import json
 from nltk import PorterStemmer
@@ -183,27 +218,37 @@ class Agent():
 		self.speechProcessor = SpeechProcessor()
 		self.stemmer = PorterStemmer()
 		self.propositions = []
-	def createProposition(self, sentence):
+	def createPropositions(self, sentence):
 		logic = self.speechProcessor.extractLogic(sentence)
 
-		finalSubject = ''
-		for subject in logic['subjects']:
-			subject = self.stemmer.stem(subject)
-			if finalSubject == '':
-				finalSubject = subject 
-			else:
-				finalSubject = finalSubject + '_' + subject
-		finalObject = ''
-		for obj in logic['objects']:
-			obj = self.stemmer.stem(obj)
-			if finalObject == '':
-				finalObject = obj
-			else:
-				finalObject = finalObject + '_' + obj
+		#CB supporting hypotheticals
+		#CB incorporating difference between subject and object into symbols themselves
+		if 'conclusion' in logic:
+			premise = [subject for subject in logic['premise']['subjects']]
+				#subject + "_S"
+			premise.extend([obj for obj in logic['premise']['objects']])
+				#obj + "_O"
+			conclusion = [subject for subject in logic['conclusion']['subjects']]
+			conclusion.extend([obj for obj in logic['conclusion']['objects']])
 
-		return Proposition([finalSubject, 'IMPLIES', finalObject])
+			for p in range(len(premise)-1, 0, -1):
+				premise.insert(p, 'AND')
+
+			toReturn = []
+			#CB the logic on this
+			for c in conclusion:
+				temp = premise.copy()
+				temp.extend(['IMPLIES', c])
+				toReturn.append(temp)
+			return [Proposition(r) for r in toReturn]
+		else:
+			allFacts = logic['subjects']
+			allFacts.extend(logic['objects'])
+			return [Proposition([s]) for s in allFacts]
+
+		#return Proposition([finalSubject, 'IMPLIES', finalObject])
 	def storeProposition(self, sentence):
-		self.propositions.append(self.createProposition(sentence))
+		self.propositions.extend(self.createPropositions(sentence))
 	def getPropositions(self):
 		return self.propositions
 	def displayPropArr(self, index=-1):
@@ -212,4 +257,64 @@ class Agent():
 				print(prop.getPropArr())
 		else:
 			print(self.propositions[index].getPropArr())
+
+
+def PL_FC_Entails(KB, q=None):
+	agenda = []
+	inferred = {}
+	count = {}
+
+
+	for clauseIndex in range(len(KB)):
+		clause = KB[clauseIndex]
+
+		#If there is no implies symbol in the horn clause, the clause is simply a known fact
+		try: 
+			clause.index(PropSyntax.IMPLIES)
+		except:
+			agenda.extend(clause)
+
+		#Count the symbols in the proposition, as well as check for unique symbols in the entire clause, in one loop
+		c = 0
+		impliesSeen = False
+		for symbol in clause:
+			#Once the implies symbol is seen, the remaining symbol is part of the conclusion
+			if symbol == PropSyntax.IMPLIES:
+				impliesSeen = True
+			#While handling symbols, we want to ignore all propositional syntax
+			elif type(symbol) != PropSyntax:
+				if not symbol in inferred:
+					inferred[symbol] = False
+				if impliesSeen == False:	
+					c = c + 1
+
+		count[clauseIndex] = c
+
+	while agenda:
+		p = agenda.pop()
+		if p == q:
+			return True
+		if inferred[p] == False:
+			inferred[p] = True
+			#CB make this more efficient with some presorting
+			for clauseIndex in range(len(KB)):
+
+				clause = KB[clauseIndex]
+
+				try:
+					pIndex = clause.index(p)
+				except:
+					None
+				else:
+					try:
+						iIndex = clause.index(PropSyntax.IMPLIES)
+					except:
+						None
+					else:
+						if pIndex < iIndex:
+							count[clauseIndex] = count[clauseIndex] - 1
+							if count[clauseIndex] == 0:
+								agenda.append(clause[iIndex+1])
+	return False
+
 
