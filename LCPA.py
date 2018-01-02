@@ -1,3 +1,13 @@
+#
+#	TODO
+#
+
+#Different verbs represented logically
+#Synonyms represented as the same logical concept
+#Word sense disambiguation to differentiate between different meanings or contexts of the same word
+#Logical not and whether it works with horn clauses
+#
+
 from enum import Enum
 from enum import auto
 
@@ -52,62 +62,6 @@ class Proposition():
 			else:
 				length += 1
 		return length
-	#TODO: implement the rules portion
-	def checkRuleValidity(self, ruleNumber):
-		if ruleNumber == 1:
-			if self.propArr.index(propSyntax.AND) != -1 or self.propArr[1].index(PropSyntax.OR) != -1:
-				return True
-			else:
-				return False
-		elif ruleNumber == 2:
-			if self.propArr.index(PropSyntax.IMPLIES) != -1:
-				return True
-			else:
-				return False
-		elif ruleNumber ==3:
-			if self.propArr.index(PropSyntax.OR) != -1 or self.PropArr.index(PropSyntax.AND) != -1:
-				return True
-			else:
-				return False
-		elif ruleNumber == 4:
-			if not type(self.propArr[2]) is Proposition:
-				return False
-			if self.propArr[1] == PropSyntax.OR and self.propArr[2].getPropArr()[1] == PropSyntax.OR:
-				return True
-			if self.propArr[1] == PropSyntax.AND and self.propArr[2].getPropArr()[1] == PropSyntax.AND:
-				return True
-			return False
-		elif ruleNumber == 5:
-			if self.propArr[1] == PropSyntax.OR:
-				return True
-			else:
-				return False
-		elif ruleNumber == 6:
-			if self.propArr[1] == PropSyntax.IMPLIES:
-				return True
-			else: 
-				return False
-		elif ruleNumber == 7:
-			if not type(self.propArr[2]) is Proposition:
-				return False
-			if self.propArr[1] == PropSyntax.OR and self.propArr[2].getPropArr()[1] == PropSyntax.AND:
-				return True
-			if self.propArr[1] == PropSyntax.AND and self.propArr[2].getPropArr()[1] == PropSyntax.OR:
-				return True
-			return False
-		#CB on GPS' 'main expression' rules
-	#def applyRule(self, ruleNumber):
-		#CB construction
-		#if ruleNumber == 1:
-		#	temp = self.propArr[0]
-		#	self.propArr[0] = self.propArr[2]
-		#	self.propArr[2] = temp
-		#CB this one
-		#if ruleNumber == 2:
-		#	temp = self.propArr[0]
-		#	self.propArr[0] = self.propArr[2]
-		#	self.propArr[2] = temp
-		#if ruleNumber == 3:
 
 import nltk.parse.stanford
 class SpeechProcessor():
@@ -236,10 +190,17 @@ class Agent():
 
 			toReturn = []
 			#CB the logic on this
+			finalConclusion = ""
 			for c in conclusion:
-				temp = premise.copy()
-				temp.extend(['IMPLIES', c])
-				toReturn.append(temp)
+				if finalConclusion == "":
+					finalConclusion = c
+				else:
+					finalConclusion = finalConclusion + " " + c
+
+			temp = premise.copy()
+			temp.extend(['IMPLIES', finalConclusion])
+			toReturn.append(temp)
+
 			return [Proposition(r) for r in toReturn]
 		else:
 			allFacts = logic['subjects']
@@ -257,8 +218,31 @@ class Agent():
 				print(prop.getPropArr())
 		else:
 			print(self.propositions[index].getPropArr())
+	def query(self, q):
+		return PL_FC_Entails([prop.propArr for prop in self.propositions], q)
+	def askQuestion(self, question):
+		logic = self.speechProcessor.extractLogic(question)
+		if 'subjects' in logic:
+			q = ""
+			for s in logic['subjects']:
+				if q == "":
+					q = s
+				else:
+					q = q + " " + s
+			for o in logic['objects']:
+				if q == "":
+					q = o
+				else:
+					q = q + " " + o
+			if len(q) > 0:
+				return self.query(q)
+		return False
+			
 
 
+
+#Implemented Propositional Logic Forward Chain Entails algorithm here,
+#as described in Artificial Intelligence A Modern Approach by Russell and Norvig
 def PL_FC_Entails(KB, q=None):
 	agenda = []
 	inferred = {}
