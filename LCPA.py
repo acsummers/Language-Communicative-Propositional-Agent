@@ -1,17 +1,6 @@
-#
-#	TODO
-#
-
-#Different verbs represented logically
-#Synonyms represented as the same logical concept
-#Word sense disambiguation to differentiate between different meanings or contexts of the same word
-#Logical not and whether it works with horn clauses
-#
-
 from enum import Enum
 from enum import auto
 
-#CB changing the type of this
 #A class representing a syntax symbol in a propositional statement
 class PropSyntax(Enum):
 	IMPLIES = auto()
@@ -77,6 +66,7 @@ class SpeechProcessor():
 			inputTree = rawParsed[0][0]
 
 		SBAR = None
+
 		#Only handling declarative sentences for now
 		if inputTree.label() == 'S':
 			for i in range(len(inputTree)):
@@ -96,24 +86,10 @@ class SpeechProcessor():
 				subjects =[]
 				for s in range(len(NP)):
 					node = NP[s]
-					if type(node[0]) is str:
-						subjects.append(node[0])
-
-				#print(VP)
-				#CB sentences like 
-				#The sun is bigger than the earth
-				#Subjects: The sun Objects: N/A
-				#CB Boston is the capitol of massachusetts
-				#Subjects: Boston Objects: the capitol
-				#CB The crown is a tv series about queen elizabeth
-				#Subjects: The crown Objects: a tv series
-
-				#There are 24 hours in a day
-				#Subjects: There Objects: 24 hours
-				#The subject is right given the parse tree, handle cases like this in more detail
-
+					if node.label() == 'NN' or node.label() == 'NNS' or node.label() == 'NNP' or node.label() == 'NNPS' or node.label() == 'PRP' or node.label == 'PRP$':
+						subjects.append((node[0], node.label()))
+				
 				newVP = None
-
 				for i in range(len(VP)):
 					if (newVP == None and (VP[i].label() == 'NP' or VP[i].label() == 'ADJP' or VP[i].label() == 'VP')):
 						newVP = VP[i]
@@ -127,30 +103,49 @@ class SpeechProcessor():
 					VP = newVP
 
 				objects = []
+				adjpSeen = False
+
 				for i in range(len(VP)):
 					if VP[i].label() == 'SBAR':
 						SBAR = VP[i]
-					elif (VP[i].label()  == 'NN' or VP[i].label() == 'JJ' or VP[i].label() == 'VBG' or VP[i].label() == 'VBN' or VP[i].label() == 'NNS'):
-						objects.append(VP[i][0])
+					elif (VP[i].label()  == 'NN' or VP[i].label() == 'JJ' or VP[i].label() == 'JJR' or VP[i].label() == 'JJS' or VP[i].label() == 'VBG' or VP[i].label() == 'VBN' or VP[i].label() == 'NNS' or VP[i].label() == 'NNP' or VP[i].label() == 'NNPS' or VP[i].label() == 'PRP' or VP[i].label() == 'PRP$'):
+						objects.append((VP[i][0], VP[i].label()))
 					elif (VP[i].label() == 'NP'):
-					#or VP[i].label() == 'ADJP' or VP[i].label() == 'PP'):
-					#CB more complicated internal phrases
 						node = VP[i]
 						while not type(node[0][0]) is str:
 							node = node[0]
 						for o in range(len(node)):
 							temp = node[o]
-							if type(temp[0]) is str:
-								objects.append(temp[0])
-					#CB if this is really necessary, might not have as many of these internal verb phrases
+							if temp.label() == 'NN' or temp.label() == 'NNS' or temp.label() == 'NNP' or temp.label() == 'NNPS' or temp.label() == 'PRP' or temp.label == 'PRP$':
+								objects.append((temp[0], temp.label()))
 					elif (VP[i].label() == 'VP'):
 						node = VP[i]
 						while not type(node[0][0]) is str:
 							node = node[0]
 						for o in range(len(node)):
 							temp = node[o]
-							if temp.label() == 'VBN' or temp.label() == 'VBG' and type(temp[0]) is str:
-								objects.append(temp[0])
+							if temp.label() == 'VBN' or temp.label() == 'VBG':
+								objects.append((temp[0], temp.label()))
+					elif (VP[i].label() == 'ADJP'):
+						adjpSeen = True
+						node = VP[i]
+						while not type(node[0][0]) is str:
+							node = node[0]
+						for o in range(len(node)):
+							temp = node[o]
+							if temp.label() == 'JJ' or temp.label() == 'JJR' or temp.label() == 'JJS':
+								objects.append((temp[0], temp.label()))
+					elif (VP[i].label() == 'PP' and adjpSeen == True):
+						node = VP[i]
+						for n in range(len(node)):
+							if node[n].label() == 'NP':
+								node = node[n]
+						while not type(node[0][0]) is str:
+							node = node[0]
+						for o in range(len(node)):
+							temp = node[o]
+							if temp.label() == 'NN' or temp.label() == 'NNS' or temp.label() == 'NNP' or temp.label() == 'NNPS' or temp.label() == 'PRP' or temp.label == 'PRP$':
+								objects.append((temp[0], temp.label()))
 
 				if SBAR:
 					for node in SBAR:
@@ -167,23 +162,87 @@ class SpeechProcessor():
 
 import json
 from nltk import PorterStemmer
+from nltk.wsd import lesk
+from nltk.corpus import wordnet
+
 class Agent():
 	def __init__(self):
 		self.speechProcessor = SpeechProcessor()
 		self.stemmer = PorterStemmer()
 		self.propositions = []
+		self.synsetsList = []
+
+	def checkSynset(self, synset, usedByAdd=False):
+		if not synset:
+			return -1
+
+		candidate = -1
+		topScore = -1
+
+		for s in range(len(self.synsetsList)):
+			theSet = self.synsetsList[s]
+			for i in range(len(theSet)):
+				item = theSet[i]
+				simScore = synset.wup_similarity(item)
+
+				#This handles the fact that there 
+				#needs to be extra information returned
+				#in the case that we want to know whether or not to add a synset
+				#to the list
+				if item == synset or simScore == 1.00:
+					if not usedByAdd:
+						return s
+					else:
+						return (s,)
+				if simScore and simScore > 0.75 and simScore > topScore:
+					candidate = s
+					topScore = simScore
+
+		return candidate
+
+	def addSynset(self, synset):
+		candidate = self.checkSynset(synset, usedByAdd=True)
+		if type(candidate) is tuple:
+			return candidate[0]
+		if candidate != -1:
+			self.synsetsList[candidate].append(synset)
+			return candidate
+		else:
+			self.synsetsList.append([synset])
+			return len(self.synsetsList)-1
+
+
+	#Create proposition helper method
+	def constructClause(self, inputArray, splitSentence):
+		toReturn = []
+		for tup in inputArray:
+				synSubj = None
+				if treeToWordNet(tup[1]):
+					synSubj = lesk(splitSentence, tup[0], treeToWordNet(tup[1]))
+				if not synSubj:
+					toReturn.append(tup[0])
+				else:
+					print("Word: " + tup[0])
+					print(synSubj)
+					setIndex = self.addSynset(synSubj)
+					toReturn.append("SYN_" + str(setIndex))
+		return toReturn
+
+
 	def createPropositions(self, sentence):
 		logic = self.speechProcessor.extractLogic(sentence)
+		splitSentence = sentence.split()
 
 		#CB supporting hypotheticals
 		#CB incorporating difference between subject and object into symbols themselves
 		if 'conclusion' in logic:
-			premise = [subject for subject in logic['premise']['subjects']]
-				#subject + "_S"
-			premise.extend([obj for obj in logic['premise']['objects']])
-				#obj + "_O"
-			conclusion = [subject for subject in logic['conclusion']['subjects']]
-			conclusion.extend([obj for obj in logic['conclusion']['objects']])
+			premise = self.constructClause(logic['premise']['subjects'], splitSentence)
+
+			
+			premise.extend(self.constructClause(logic['premise']['objects'], splitSentence))
+				
+			conclusion = self.constructClause(logic['conclusion']['subjects'], splitSentence)
+			conclusion.extend(self.constructClause(logic['conclusion']['objects'], splitSentence))
 
 			for p in range(len(premise)-1, 0, -1):
 				premise.insert(p, 'AND')
@@ -203,8 +262,8 @@ class Agent():
 
 			return [Proposition(r) for r in toReturn]
 		else:
-			allFacts = logic['subjects']
-			allFacts.extend(logic['objects'])
+			allFacts = self.constructClause(logic['subjects'], splitSentence)
+			allFacts.extend(self.constructClause(logic['objects'], splitSentence))
 			return [Proposition([s]) for s in allFacts]
 
 		#return Proposition([finalSubject, 'IMPLIES', finalObject])
@@ -222,24 +281,50 @@ class Agent():
 		return PL_FC_Entails([prop.propArr for prop in self.propositions], q)
 	def askQuestion(self, question):
 		logic = self.speechProcessor.extractLogic(question)
+		splitSentence = question.split()
+
 		if 'subjects' in logic:
 			q = ""
 			for s in logic['subjects']:
+				subj = s[0]
+				leskAnalysis = None
+				if treeToWordNet(s[1]):
+					leskAnalysis = lesk(splitSentence, s[0], treeToWordNet(s[1]))
+				setIndex = self.checkSynset(leskAnalysis)
+				if setIndex != -1:
+					subj = "SYN_" + str(setIndex)
+
 				if q == "":
-					q = s
+					q = subj
 				else:
-					q = q + " " + s
+					q = q + " " + subj
 			for o in logic['objects']:
+				obj = o[0]
+				leskAnalysis = None
+				if treeToWordNet(o[1]):
+					leskAnalysis = lesk(splitSentence, o[0], treeToWordNet(o[1]))
+				setIndex = self.checkSynset(leskAnalysis)
+				if setIndex != -1:
+					obj = "SYN_" + str(setIndex)
+
 				if q == "":
-					q = o
+					q = obj
 				else:
-					q = q + " " + o
+					q = q + " " + obj
+			print(q)
 			if len(q) > 0:
 				return self.query(q)
 		return False
 			
-
-
+def treeToWordNet(tag):
+	if tag == "NNS" or tag =="NN":
+		return "n"
+	if tag == "VB" or tag =="VBD" or tag =="VBG" or tag =="VBN" or tag =="VBP" or tag =="VBZ":
+		return "v"
+	if tag == "JJ" or tag =="JJR" or tag =="JJS":
+		return "a"
+	if tag =="RB" or tag == "RBR" or tag == "RBS":
+		return "r"
 
 #Implemented Propositional Logic Forward Chain Entails algorithm here,
 #as described in Artificial Intelligence A Modern Approach by Russell and Norvig
