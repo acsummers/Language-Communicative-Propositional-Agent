@@ -1,5 +1,22 @@
+#Language Communicative Propositional Agent 
+#Created by Alexander Summers
+
+#This file contains four main classes. 
+#The first two are PropSyntax and Proposition, both intended to represent logical propositions
+#The third is the SpeechProcessor, which performs syntactic analysis using the Stanford parser, 
+#and basic semantic analysis to extract logical features from the sentences.
+#The fourth is the Agent, which stores propositions created from natural language sentences, and
+#can check to see if a fact is true given the information already received.
+
 from enum import Enum
 from enum import auto
+
+import nltk.parse.stanford
+
+import json
+from nltk import PorterStemmer
+from nltk.wsd import lesk
+from nltk.corpus import wordnet
 
 #A class representing a syntax symbol in a propositional statement
 class PropSyntax(Enum):
@@ -10,7 +27,6 @@ class PropSyntax(Enum):
 
 #A class representing a propositional statement
 class Proposition():
-	#CB adding recursive aspects here. Propostions embed within each other
 	#Constructor assumes a properly formatted string array as input
 	def __init__(self, stringArr):
 		newArr = []
@@ -30,12 +46,7 @@ class Proposition():
 					s += 1
 				continue
 			else:
-				#Add in the not case
 				newArr.append(PropSyntax[stringArr[s]])
-				#if stringArr[s] == "NOT":
-				#	if (s+1) == (len(stringArr)-1):
-				#		continue
-				#	else:
 
 				
 			s += 1
@@ -52,7 +63,11 @@ class Proposition():
 				length += 1
 		return length
 
-import nltk.parse.stanford
+
+
+#A class that parses natural language using the nltk interface with the Stanford Parser.
+#It performs basic semantic analysis on the resulting parse tree to extract logical features 
+#from the natural language sentences.
 class SpeechProcessor():
 	def __init__(self):
 		self.stanfordParser = nltk.parse.stanford.StanfordParser(path_to_jar='/usr/local/Cellar/stanford-parser/3.8.0/libexec/stanford-parser.jar', path_to_models_jar='/usr/local/Cellar/stanford-parser/3.8.0/libexec/stanford-parser-3.8.0-models.jar', model_path='/usr/local/Cellar/stanford-parser/3.8.0/libexec/edu/stanford/nlp/models/lexparser/englishPCFG.ser.gz')
@@ -67,7 +82,6 @@ class SpeechProcessor():
 
 		SBAR = None
 
-		#Only handling declarative sentences for now
 		if inputTree.label() == 'S':
 			for i in range(len(inputTree)):
 				if inputTree[i].label() == 'NP':
@@ -160,11 +174,13 @@ class SpeechProcessor():
 						return {'subjects': subjects, 'objects': objects}
 		return None
 
-import json
-from nltk import PorterStemmer
-from nltk.wsd import lesk
-from nltk.corpus import wordnet
 
+
+
+#A class that uses the SpeechProcessor to store Propositions from natural language.
+#Natural language statements can then be determined to be true or false according to the proposition
+#using the forward chaining propositional logic algorithm, as laid out
+#by Artificial Intelligence A Modern Approach by Russell and Norvig.
 class Agent():
 	def __init__(self):
 		self.speechProcessor = SpeechProcessor()
@@ -233,8 +249,6 @@ class Agent():
 		logic = self.speechProcessor.extractLogic(sentence)
 		splitSentence = sentence.split()
 
-		#CB supporting hypotheticals
-		#CB incorporating difference between subject and object into symbols themselves
 		if 'conclusion' in logic:
 			premise = self.constructClause(logic['premise']['subjects'], splitSentence)
 
@@ -248,7 +262,6 @@ class Agent():
 				premise.insert(p, 'AND')
 
 			toReturn = []
-			#CB the logic on this
 			finalConclusion = ""
 			for c in conclusion:
 				if finalConclusion == "":
@@ -266,7 +279,6 @@ class Agent():
 			allFacts.extend(self.constructClause(logic['objects'], splitSentence))
 			return [Proposition([s]) for s in allFacts]
 
-		#return Proposition([finalSubject, 'IMPLIES', finalObject])
 	def storeProposition(self, sentence):
 		self.propositions.extend(self.createPropositions(sentence))
 	def getPropositions(self):
@@ -316,6 +328,9 @@ class Agent():
 				return self.query(q)
 		return False
 			
+
+#A function that takes a treebank part of speech tag as input 
+#and return the corresponding wordnet tag		
 def treeToWordNet(tag):
 	if tag == "NNS" or tag =="NN":
 		return "n"
@@ -365,7 +380,7 @@ def PL_FC_Entails(KB, q=None):
 			return True
 		if inferred[p] == False:
 			inferred[p] = True
-			#CB make this more efficient with some presorting
+			#This could be made more efficient with presorting
 			for clauseIndex in range(len(KB)):
 
 				clause = KB[clauseIndex]
